@@ -31,7 +31,7 @@ class DjangoOpenAPIRequestValidationMiddleware:
                     data={"errors": [str(err)]},
                     status=404,
                 )
-            logger.debug("Invalid path, but ingore: %s", err)
+            logger.warning("Invalid path, but ingore: %s", err)
             return self.get_response(request)
         else:
             result = self.request_validator.validate(openapi_request)
@@ -44,5 +44,5 @@ class DjangoOpenAPIRequestValidationMiddleware:
                         data=data,
                         status=400,
                     )
-            logger.debug("Invalid schema, but ingore: %s", result.errors)
+            logger.warning("Invalid schema, but ingore: %s", result.errors)
         return self.get_response(request)
