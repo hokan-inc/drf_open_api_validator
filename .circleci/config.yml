@@ -1,0 +1,96 @@
+version: 2
+
+defaults:
+  job: &job
+    working_directory: ~/repo
+    docker:
+      - image: circleci/python:3.6
+
+jobs:
+  checkout:
+    <<: *job
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - checkout
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+
+  install_deps:
+    <<: *job
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - restore_cache:
+          keys:
+            - wheel-cache-{{ .Branch }}
+      - run:
+          name: Install dependencies (Python)
+          command: |
+            python -m venv .venv
+            . .venv/bin/activate
+            pip install poetry
+            poetry install
+      - save_cache:
+          key: wheel-cache-{{ .Branch }}
+          paths:
+            - ~/.cache
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+
+  lint:
+    <<: *job
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Run linters
+          command: |
+            . .venv/bin/activate
+            flake8 .
+            isort --check-only .
+
+  type_check:
+    <<: *job
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Type check.
+          command: |
+            . .venv/bin/activate
+            mypy
+
+  unittest:
+    <<: *job
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Type check.
+          command: |
+            . .venv/bin/activate
+            pytest
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - checkout
+      - install_deps:
+          requires:
+            - checkout
+      - type_check:
+          requires:
+            - checkout
+            - install_deps
+      - unittest:
+          requires:
+            - checkout
+            - install_deps
+      - lint:
+          requires:
+            - checkout
+            - install_deps
