@@ -3,7 +3,6 @@ import logging
 import django
 from django.conf import settings
 from django.http import HttpRequest, JsonResponse
-
 from openapi_core.contrib.django.requests import DjangoOpenAPIRequestFactory
 from openapi_core.contrib.django.responses import DjangoOpenAPIResponseFactory
 from openapi_core.templating.paths.exceptions import (OperationNotFound,
@@ -32,50 +31,61 @@ class DjangoOpenAPIRequestValidationMiddleware:
         # Check path
         try:
             openapi_request = self.request_factory.create(request)
-            self.path_finder.find(openapi_request)
-        except (PathNotFound, OperationNotFound, ServerNotFound) as err:
-            logger.warning("Invalid path", exc_info=True)
-            if self.strict_path:
-                return JsonResponse(
-                    data={"errors": [str(err)]},
-                    status=404,
-                )
-            return self.get_response(request)
         except Exception:
             logger.warning("An error occured in the open api validator", exc_info=True)
-            return self.get_response(request)
+            openapi_request = None
 
-        # Check input
-        try:
-            result = self.request_validator.validate(openapi_request)
-            if result.errors:
-                logger.warning("Invalid schema, but ingore: %s", result.errors)
-
-                if self.strict_request_schema:
-                    data = {
-                        "errors": [str(error) for error in result.errors],
-                    }
+        if openapi_request:
+            try:
+                self.path_finder.find(openapi_request)
+            except (PathNotFound, OperationNotFound, ServerNotFound) as err:
+                logger.warning("Invalid path", exc_info=True)
+                if self.strict_path:
                     return JsonResponse(
-                        data=data,
+                        data={"errors": [str(err)]},
+                        status=404,
+                    )
+            except Exception:
+                logger.warning("Invalid path", exc_info=True)
+                if self.strict_path:
+                    return JsonResponse(
+                        data={"errors": ["unknown"]},
+                        status=404,
+                    )
+
+        if openapi_request:
+            openapi_result = self.request_validator.validate(openapi_request)
+            if openapi_result.errors:
+                logger.warning("Invalid schema, but ingore: %s", openapi_result.errors)
+                if self.strict_request_schema:
+                    return JsonResponse(
+                        data={
+                            "errors": [str(err) for err in openapi_result.errors],
+                        },
                         status=400,
                     )
-                return self.get_response(request)
-
-        except Exception:
-            logger.warning("An error occured in the open api validator", exc_info=True)
-            return self.get_response(request)
 
         response = self.get_response(request)
-
-        # Check output
-        try:
-            openapi_response = self.response_factory.create(response)
-            result = self.response_validator.validate(openapi_response)
-            if result.errors:
-                logger.warning("Invalid response schema: %s", result)
-        except Exception:
-            logger.warning("An error occured in the open api validator", exc_info=True)
-            if self.strict_response_schema:
-                raise
+        if openapi_request:
+            try:
+                openapi_response = self.response_factory.create(response)
+                openapi_result = self.response_validator.validate(
+                    openapi_request, openapi_response
+                )
+                if openapi_result.errors:
+                    logger.warning("Invalid response schema: %s", openapi_result)
+                    if self.strict_response_schema:
+                        return JsonResponse(
+                            data={
+                                "errors": [str(err) for err in openapi_result.errors],
+                            },
+                            status=500,
+                        )
+            except Exception:
+                logger.warning(
+                    "An error occured in the open api validator", exc_info=True
+                )
+                if self.strict_response_schema:
+                    raise
 
         return response
