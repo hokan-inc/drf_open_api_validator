@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools", "wheel", "poetry^1.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.poetry]
+name = "drf-open-api-validator"
+version = "1.0.0"
+description = "drf-open-api-validator"
+authors = ["Hokan Inc <developer@hokan.co.jp>"]
