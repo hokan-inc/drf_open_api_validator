@@ -1,0 +1,29 @@
+version: 2
+
+jobs:
+  checkout:
+    docker:
+      - image: sximada/python-all
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - checkout
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+  test:
+    docker:
+      - image: sximada/python-all
+    steps:
+      - run:
+          name: Run tests
+          command: |
+            tox
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - checkout
+      - test
+
